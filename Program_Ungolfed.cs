@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
@@ -20,14 +20,14 @@ class Game : ApplicationContext, IMessageFilter
     NotifyIcon I;
     Timer Q;
     //_ = SPACE
-    int L = -1, R = 1, U = 3, D = 4, _ = 5, W = 16, H = 14, Z = 15, i, j, k, x, y;
-    int mode, t = 0, dx = 1, dy, spd = 5, X, Y, game_selection, bx, by;
+    int left = -1, right = 1, up = 3, down = 4, _ = 5, width = 16, height = 14, Z = 15, i, j, k, x, y;
+    int mode, t = 0, dx = 1, dy, speed = 5, X, Y, game_selection, bx, by;
     string[] games = { "BRK", "SNK", "CRS", "ARK" };
     int BRK = 0, SNK = 1, CRS = 2, ARK = 3, MENU = 9, OVR = 8;
     Random r = new Random();
-    int[][] M;
+    int[][] blocks;
     List<P> snake;
-    P f;
+    P ball;
     Font font;
 
     public Game()
@@ -40,10 +40,10 @@ class Game : ApplicationContext, IMessageFilter
         };
         //register global hotkeys for controls
         Action<int, Keys> E = (k, K) => RegisterHotKey((IntPtr)0, k, 0, (int)K);
-        E(L, Keys.Left);
-        E(R, Keys.Right);
-        E(U, Keys.Up);
-        E(D, Keys.Down);
+        E(left, Keys.Left);
+        E(right, Keys.Right);
+        E(up, Keys.Up);
+        E(down, Keys.Down);
         E(_, Keys.Space);
         Application.AddMessageFilter(this);
         mode = MENU;
@@ -51,7 +51,7 @@ class Game : ApplicationContext, IMessageFilter
         var c = new SD.Text.PrivateFontCollection();
         c.AddFontFile("f.ttf");
         font = new Font(c.Families[0], 5, GraphicsUnit.Pixel);
-        Q = new Timer() { Interval = W };
+        Q = new Timer() { Interval = width };
         Q.Tick += (e, a) => T();
         Q.Start();
     }
@@ -64,12 +64,12 @@ class Game : ApplicationContext, IMessageFilter
         if (mode == SNK)
         {
             //generate initial snake and food
-            f = new P(8, 8);
+            ball = new P(8, 8);
             for (i = 4; i >= 0; i--) snake.Add(new P(i, 4));
         }
         if (mode == ARK)
         {
-            f = new P(9, 15); X = 5;
+            ball = new P(9, 15); X = 5;
             //make level
             for (y = 3; y < 7; y++)
                 for (x = 3; x < 13; x++)
@@ -90,21 +90,21 @@ class Game : ApplicationContext, IMessageFilter
             //move bricks down
             if (t % 15 == 0)
             {
-                for (y = H - 1; y > 0; y--)
-                    M[y] = M[y - 1];
-                M[0] = MkR();
+                for (y = height - 1; y > 0; y--)
+                    blocks[y] = blocks[y - 1];
+                blocks[0] = MkR();
             }
             //shoot the cannon
-            for (y = H - 1; y >= 0; y--)
-                if (M[y][X + 2] > 0)
+            for (y = height - 1; y >= 0; y--)
+                if (blocks[y][X + 2] > 0)
                 {
-                    M[y][X + 2] = 0;
+                    blocks[y][X + 2] = 0;
                     break;
                 }
         }
         if (mode == SNK)
         {
-            if (t % spd == 0)
+            if (t % speed == 0)
             {
                 //remove the tail
                 snake.RemoveAt(snake.Count - 1);
@@ -112,41 +112,41 @@ class Game : ApplicationContext, IMessageFilter
                 var dst = snake[0] + new Size(dx, dy);
                 snake.Insert(0, dst);
                 //ate the food - spawn one more head
-                if (dst == f)
+                if (dst == ball)
                 {
                     snake.Insert(0, snake[0] + new Size(dx, dy));
-                    f = new P(r.Next(W), r.Next(W));
+                    ball = new P(r.Next(width), r.Next(width));
                 }
                 //head hit the wall, end
                 var h = snake[0];
-                if (h.X > W || h.X < 0 || h.Y < 0 || h.Y > W) mode = OVR;
+                if (h.X > width || h.X < 0 || h.Y < 0 || h.Y > width) mode = OVR;
             }
         }
         if (mode == CRS)
         {
-            if (t % spd == 0)
+            if (t % speed == 0)
             {
                 //move cars downward, respawn cars if they leave off screen
-                for (i = 0; i < 3; i++) { M[0][i]--; if (M[0][i] < -3) SpawnCars(); }
+                for (i = 0; i < 3; i++) { blocks[0][i]--; if (blocks[0][i] < -3) SpawnCars(); }
                 //if a car in the same lane touches the player, game over
-                if (M[0][X] < 5) mode = OVR;
+                if (blocks[0][X] < 5) mode = OVR;
             }
         }
         if (mode == ARK)
         {
-            if (t % spd == 0)
+            if (t % speed == 0)
             {
                 foreach (P p in snake)
                 {
                     //check if we have a neighbor left or right - if yes, invert x and destroy it
-                    if (Abs(p.X - f.X) == 1 && p.Y == f.Y)
+                    if (Abs(p.X - ball.X) == 1 && p.Y == ball.Y)
                     {
                         bx *= -1;
                         snake.Remove(p);
                         break;
                     }
                     //check if we have a neighbor above or below - if yes, invert y and destroy it
-                    if (Abs(p.Y - f.Y) == 1 && p.X == f.X)
+                    if (Abs(p.Y - ball.Y) == 1 && p.X == ball.X)
                     {
                         by *= -1;
                         snake.Remove(p);
@@ -154,16 +154,16 @@ class Game : ApplicationContext, IMessageFilter
                     }
                 }
                 //update ball position - it's always going in 45 degrees
-                f.X += bx;
-                f.Y += by;
+                ball.X += bx;
+                ball.Y += by;
                 //hit paddle?
-                if (f.Y == 14 && f.X >= X && f.X < X + 5) by *= -1;
+                if (ball.Y == 14 && ball.X >= X && ball.X < X + 5) by *= -1;
                 //ball hit the top - invert dy
-                if (f.Y < 1) by *= -1;
+                if (ball.Y < 1) by *= -1;
                 //ball hit the right wall or left wall - invert dx; corners - dx and dy
-                if (f.X > 13 || f.X < 2) bx *= -1;
+                if (ball.X > 13 || ball.X < 2) bx *= -1;
                 //ball hit the bottom - game over
-                if (f.Y > 15) mode = OVR;
+                if (ball.Y > 15) mode = OVR;
             }
         }
         Draw();
@@ -174,15 +174,15 @@ class Game : ApplicationContext, IMessageFilter
         //produce pattern 001,010,011,100,101,110
         k = r.Next(6) + 1;
         //spawn enemy car close, if its bit was 1, or really far away
-        M[0][0] = (k & 1) > 0 ? H : 99;
-        M[0][1] = (k & 2) > 0 ? H : 99;
-        M[0][2] = (k & 4) > 0 ? H : 99;
+        blocks[0][0] = (k & 1) > 0 ? height : 99;
+        blocks[0][1] = (k & 2) > 0 ? height : 99;
+        blocks[0][2] = (k & 4) > 0 ? height : 99;
     }
 
     int[] MkR()
     {
-        var I = new int[W];
-        for (int x = 0; x < W; x++)
+        var I = new int[width];
+        for (int x = 0; x < width; x++)
             if (r.Next(10) > 7)
                 I[x] = 1;
         return I;
@@ -190,13 +190,13 @@ class Game : ApplicationContext, IMessageFilter
 
     void GenLevel()
     {
-        M = new int[H][];
-        for (int y = 0; y < H; y++) M[y] = y < 6 ? MkR() : new int[W];
+        blocks = new int[height][];
+        for (int y = 0; y < height; y++) blocks[y] = y < 6 ? MkR() : new int[width];
     }
 
     void Draw()
     {
-        var bmp = new Bitmap(W, W);
+        var bmp = new Bitmap(width, width);
         var g = Graphics.FromImage(bmp);
         var ds = SD.Drawing2D.DashStyle.Dash;
         Pen BP = new Pen(Color.White) { DashStyle = ds, DashOffset = t };
@@ -208,7 +208,7 @@ class Game : ApplicationContext, IMessageFilter
             //mode selector
             S("PLAY", 1);
             string game = games[game_selection];
-            S(game + spd, 8);
+            S(game + speed, 8);
         }
         if (mode == OVR)
         {
@@ -221,9 +221,9 @@ class Game : ApplicationContext, IMessageFilter
             g.Clear(Color.Black);
             g.DrawLine(Pens.Magenta, X, 15, X + 5, 15);
             //draw blocks
-            for (int y = 0; y < H; y++)
-                for (int x = 0; x < W; x++)
-                    if (M[y][x] > 0)
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    if (blocks[y][x] > 0)
                         FR(B.Cyan, x, y);
             //draw bullets
             g.DrawLine(BP, X + 2, 15, X + 2, 0);
@@ -232,7 +232,7 @@ class Game : ApplicationContext, IMessageFilter
         {
             foreach (P p in snake)
                 FR(B.Yellow, p.X, p.Y);
-            FR(B.Red, f.X, f.Y);
+            FR(B.Red, ball.X, ball.Y);
         }
         if (mode == CRS)
         {
@@ -243,7 +243,7 @@ class Game : ApplicationContext, IMessageFilter
             //draw enemies - they move from M
             // we keep the enemies in M
             for (x = 0; x < 3; x++)
-                g.FillRectangle(B.Tan, x * 6, M[0][x], 3, 4);
+                g.FillRectangle(B.Tan, x * 6, blocks[0][x], 3, 4);
             //draw the lines
             g.DrawLine(BP, 4, 0, 4, 16);
             g.DrawLine(BP, 10, 0, 10, 16);
@@ -257,7 +257,7 @@ class Game : ApplicationContext, IMessageFilter
             //paddle
             g.DrawLine(Pens.Green, X, 15, X + 5, 15);
             //ball
-            FR(B.Red, f.X, f.Y);
+            FR(B.Red, ball.X, ball.Y);
             //walls
             g.DrawRectangle(Pens.Blue, 0.5f, -1, 15, 18);
         }
@@ -274,14 +274,14 @@ class Game : ApplicationContext, IMessageFilter
     {
         //create a direction vector from arrow keys
         dx = 0; dy = 0;
-        if (k == U) { dy = -1; }
-        if (k == D) { dy = 1; }
-        if (k == L) { dx = -1; }
-        if (k == R) { dx = 1; }
+        if (k == up) { dy = -1; }
+        if (k == down) { dy = 1; }
+        if (k == left) { dx = -1; }
+        if (k == right) { dx = 1; }
         //car-specific movement in 3 lanes vs the rest
-        X = mode == CRS ? Max(0, Min(2, X + dx)) : Max(-2, Min(W - 3, X + dx));
+        X = mode == CRS ? Max(0, Min(2, X + dx)) : Max(-2, Min(width - 3, X + dx));
         //arrow keys change the speed in the menu
-        if (mode == MENU) spd = Max(1, Min(spd + dx, 9));
+        if (mode == MENU) speed = Max(1, Min(speed + dx, 9));
         game_selection = Max(0, Min(game_selection + dy, 3));
         if (mode == MENU && k == _) { mode = game_selection; Reset(); }
         if (mode == OVR && k == _) { mode = MENU; }
